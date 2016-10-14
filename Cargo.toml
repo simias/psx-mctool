@@ -1,0 +1,7 @@
+[package]
+name = "psx-mctool"
+version = "0.1.0"
+authors = ["Lionel Flandrin <lionel.flandrin@gmail.com>"]
+
+[dependencies]
+encoding = "0.2"
