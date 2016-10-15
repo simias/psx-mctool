@@ -57,6 +57,12 @@ fn open_mc_file(path: &str) -> Result<MemoryCard, ()> {
         .map_err(|e| println!("Can't load {}: {}", path, e))
 }
 
+fn write_mc_file(mc: &MemoryCard, path: &str) -> Result<(), ()> {
+
+    mc.dump_file(Path::new(path))
+        .map_err(|e| println!("Can't write {}: {}", path, e))
+}
+
 fn list_blocks(p: &[String]) -> Result<(), ()> {
     try!(expect_params(p, &["memory-card"]));
 
@@ -193,10 +199,36 @@ fn list_all_files(p: &[String]) -> Result<(), ()> {
     do_list_files(p, true)
 }
 
-static COMMANDS: [(&'static str, fn(&[String]) -> Result<(), ()>); 5] = [
+fn format(p: &[String]) -> Result<(), ()> {
+    try!(expect_params(p, &["memory-card"]));
+
+    let mc = MemoryCard::new();
+
+    write_mc_file(&mc, &p[1])
+}
+
+
+fn load_raw_file(p: &[String]) -> Result<(), ()> {
+    try!(expect_params(p, &["memory-card", "raw-file", "file-name"]));
+
+    let mut mc = try!(open_mc_file(&p[1]));
+
+    let raw_file = Path::new(&p[2]);
+    let file_name = p[3].as_bytes();
+
+    try!(mc.load_raw_file(raw_file, file_name)
+         .map_err(|e| println!("Failed to load {}: {}",
+                               &p[2], e)));
+
+    write_mc_file(&mc, &p[1])
+}
+
+static COMMANDS: [(&'static str, fn(&[String]) -> Result<(), ()>); 7] = [
     ("help", help),
+    ("format", format),
     ("list-files", list_files),
     ("list-all-files", list_all_files),
     ("list-blocks", list_blocks),
     ("list-broken-sectors", list_broken_sectors),
+    ("load-raw-file", load_raw_file),
 ];
