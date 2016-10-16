@@ -151,44 +151,48 @@ fn do_list_files(p: &[String], show_deleted: bool) -> Result<(), ()> {
     let mc = try!(open_mc_file(&p[1]));
 
     for &f in mc.files(show_deleted).iter() {
-        let first_block = mc.block(f);
-
-        if first_block.is_free() {
-            println!("File #{} [DELETED]:", f);
-        } else {
-            println!("File #{}:", f);
-        }
-
-        println!("  File name: {}", first_block.file_name());
-
-        match mc.file_title(f) {
-            Ok(t) => println!("  Title: {}", t),
-            Err(e) => println!("  Invalid title: {}", e),
-        }
-
-        let file_size = first_block.file_size() as usize;
-
-        let file_blocks = file_size / BLOCK_SIZE;
-
-        println!("  File size (reported): {}B ({} blocks)",
-                 file_size, file_blocks);
-
-        match mc.file_blocks(f) {
-            Ok(b) => {
-                println!("  Blocks:{} ({} total)",
-                         b.iter().fold(String::new(),
-                                       |s, b| format!("{} {}", s, b)),
-                         b.len());
-
-                if b.len() != file_blocks {
-                    println!("  Reported file size does not match!");
-                }
-            }
-            Err(e) => println!("  Block chain error: {}", e),
-        }
+        list_file(&mc, f);
     }
 
     Ok(())
+}
+
+fn list_file(mc: &MemoryCard, f: u8) {
+    let first_block = mc.block(f);
+
+    if first_block.is_free() {
+        println!("File #{} [DELETED]:", f);
+    } else {
+        println!("File #{}:", f);
+    }
+
+    println!("  File name: {}", first_block.file_name());
+
+    match mc.file_title(f) {
+        Ok(t) => println!("  Title: {}", t),
+        Err(e) => println!("  Invalid title: {}", e),
+    }
+
+    let file_size = first_block.file_size() as usize;
+
+    let file_blocks = file_size / BLOCK_SIZE;
+
+    println!("  File size (reported): {}B ({} blocks)",
+             file_size, file_blocks);
+
+    match mc.file_blocks(f) {
+        Ok(b) => {
+            println!("  Blocks:{} ({} total)",
+                     b.iter().fold(String::new(),
+                                   |s, b| format!("{} {}", s, b)),
+                     b.len());
+
+            if b.len() != file_blocks {
+                println!("  Reported file size does not match!");
+            }
+        }
+        Err(e) => println!("  Block chain error: {}", e),
+    }
 }
 
 fn list_files(p: &[String]) -> Result<(), ()> {
@@ -207,7 +211,6 @@ fn format(p: &[String]) -> Result<(), ()> {
     write_mc_file(&mc, &p[1])
 }
 
-
 fn load_raw_file(p: &[String]) -> Result<(), ()> {
     try!(expect_params(p, &["memory-card", "raw-file", "file-name"]));
 
@@ -216,11 +219,16 @@ fn load_raw_file(p: &[String]) -> Result<(), ()> {
     let raw_file = Path::new(&p[2]);
     let file_name = p[3].as_bytes();
 
-    try!(mc.load_raw_file(raw_file, file_name)
-         .map_err(|e| println!("Failed to load {}: {}",
-                               &p[2], e)));
+    let blocks =
+        try!(mc.load_raw_file(raw_file, file_name)
+             .map_err(|e| println!("Failed to load {}: {}",
+                                   &p[2], e)));
 
-    write_mc_file(&mc, &p[1])
+    try!(write_mc_file(&mc, &p[1]));
+
+    list_file(&mc, blocks[0]);
+
+    Ok(())
 }
 
 static COMMANDS: [(&'static str, fn(&[String]) -> Result<(), ()>); 7] = [
