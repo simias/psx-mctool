@@ -1,5 +1,8 @@
 use std::process::exit;
 use std::path::Path;
+use std::str::FromStr;
+use std::fs::File;
+use std::io::Write;
 
 extern crate encoding;
 
@@ -59,7 +62,7 @@ fn open_mc_file(path: &str) -> Result<MemoryCard, ()> {
 
 fn write_mc_file(mc: &MemoryCard, path: &str) -> Result<(), ()> {
 
-    mc.dump_file(Path::new(path))
+    mc.dump_to_file(Path::new(path))
         .map_err(|e| println!("Can't write {}: {}", path, e))
 }
 
@@ -231,12 +234,84 @@ fn load_raw_file(p: &[String]) -> Result<(), ()> {
     Ok(())
 }
 
-static COMMANDS: [(&'static str, fn(&[String]) -> Result<(), ()>); 7] = [
+fn do_save_file(p: &[String], xplorer: bool) -> Result<(), ()> {
+    try!(expect_params(p, &["memory-card", "mc-file", "output-file"]));
+
+    let mc = try!(open_mc_file(&p[1]));
+
+    let mc_file = &p[2];
+
+    let mc_file =
+        match u8::from_str(&p[2]) {
+            Ok(v@1...15) => v,
+            Ok(n) => {
+                println!("Invalid block number {}", n);
+                return Err(());
+            }
+            Err(e) => {
+                println!("Invalid file \"{}\": {}", mc_file, e);
+                return Err(());
+            }
+        };
+
+    let mut data = Vec::new();
+
+    if xplorer {
+        // First dump the xplorer header
+        data.resize(0x36, 0);
+
+        let block = mc.block(mc_file);
+
+        let name = block.file_name_raw();
+
+        for (i, &b) in name.iter().enumerate() {
+            data[i] = b;
+        }
+    }
+
+    if let Err(e) = mc.dump_file_to_writer(mc_file, &mut data) {
+        println!("Can't dump file {}: {}", mc_file, e);
+    }
+
+    let out = &p[3];
+
+    let mut f =
+        match File::create(out) {
+            Ok(f) => f,
+            Err(e) => {
+                println!("Can't open {}: {}", out, e);
+                return Err(());
+            }
+        };
+
+    if let Err(e) = f.write_all(&mut data) {
+        println!("Couldn't write {}: {}", out, e);
+        return Err(());
+    }
+
+    list_file(&mc, mc_file);
+
+    println!("Dumped into {} ({}B)", out, data.len());
+
+    Ok(())
+}
+
+fn save_raw_file(p: &[String]) -> Result<(), ()> {
+    do_save_file(p, false)
+}
+
+fn save_xplorer_file(p: &[String]) -> Result<(), ()> {
+    do_save_file(p, true)
+}
+
+static COMMANDS: [(&'static str, fn(&[String]) -> Result<(), ()>); 9] = [
     ("help", help),
     ("format", format),
     ("list-files", list_files),
     ("list-all-files", list_all_files),
     ("list-blocks", list_blocks),
     ("list-broken-sectors", list_broken_sectors),
+    ("save-raw-file", save_raw_file),
+    ("save-xplorer-file", save_xplorer_file),
     ("load-raw-file", load_raw_file),
 ];

@@ -129,14 +129,28 @@ impl MemoryCard {
         Ok(mc)
     }
 
-    pub fn dump_file(&self, path: &Path) -> Result<(), Error> {
+    pub fn dump_to_file(&self, path: &Path) -> Result<(), Error> {
         let mut f = try!(File::create(path));
 
-        self.dump_writer(&mut f)
+        self.dump_to_writer(&mut f)
     }
 
-    pub fn dump_writer(&self, w: &mut Write) -> Result<(), Error> {
+    pub fn dump_to_writer(&self, w: &mut Write) -> Result<(), Error> {
         try!(w.write_all(&self.raw));
+
+        Ok(())
+    }
+
+    pub fn dump_file_to_writer(&self,
+                               file: u8,
+                               w: &mut Write) -> Result<(), Error>{
+        let blocks = try!(self.file_blocks(file));
+
+        for &b in &blocks {
+            let block = self.block(b);
+
+            try!(w.write_all(block.data()));
+        }
 
         Ok(())
     }
